@@ -1,12 +1,12 @@
-<?php
+﻿<?php
 
 /**
  * Plugin Name: WooCommerce - Moeda Digital
- * Plugin URI: http://moeda.digital/woocommerce/
+ * Plugin URI: http://docs.moeda.digital/#modulos-e-plugins-woocommerce
  * Description: Aceite as principais bandeiras de cartões em sua loja virtual com WooCommerce de uma forma simples e segura, utilizando o checkout transparente da Moeda Digital.
  * Version: 1.0.0
  * Author: Moeda Digital
- * Author URI: http://moeda.digital/
+ * Author URI: https://www.moeda.digital/
  * License: GPL version 2 or later - http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
  *
  * @package WordPress
@@ -14,7 +14,15 @@
  * @since 1.0.0
  */
 
+
+/*URL de retorno Moeda Digital
+http://www.site.com.br/index.php?wc-api=callbackmoeda&?
+*/
+
+
 add_action( 'plugins_loaded', 'woocommerce_moeda_digital_init', 0 );
+
+
 
 function woocommerce_moeda_digital_init() {
 
@@ -23,8 +31,7 @@ function woocommerce_moeda_digital_init() {
     };
 
     DEFINE ('PLUGIN_DIR', plugins_url( basename( plugin_dir_path( __FILE__ ) ), basename( __FILE__ ) ) . '/' );
-    DEFINE ('GATEWAY_URL', 'https://moeda.digital/Modulos/WooCommerce/transact.aspx?');
-    //DEFINE ('GATEWAY_URL', 'http://localhost:23296/Modulos/WooCommerce/transact.aspx?');
+    DEFINE ('GATEWAY_URL', 'https://moeda.digital/Modulos/WooCommerce/Modulo.aspx?');
 
 	/**
      * Moeda Digital Gateway Class
@@ -60,24 +67,38 @@ function woocommerce_moeda_digital_init() {
 
             // Add hooks
             add_action( 'woocommerce_before_my_account',                            array( $this, 'add_payment_method_options' ) );
-            //add_action( 'woocommerce_receipt_inspire',                              array( $this, 'receipt_page' ) );
             add_action( 'woocommerce_update_options_payment_gateways',              array( $this, 'process_admin_options' ) );
             add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
             add_action( 'wp_enqueue_scripts',                                       array( $this, 'add_moeda_digital_scripts' ) );
-            //add_action( 'scheduled_subscription_payment_inspire',                   array( $this, 'process_scheduled_subscription_payment'), 0, 3 );
-
+			add_action( 'woocommerce_api_retorno_moeda_digital',                    array( $this, 'retorno_moeda_digital' ));
         }
+		
+		function retorno_moeda_digital(){
+            $order_id = (int)$_GET['?pedido'];
+            $order = wc_get_order( $order_id );
 
-        /**
-         * Process a refund if supported
-         * @param  int $order_id
-         * @param  float $amount
-         * @param  string $reason
-         * @return  bool|wp_error True or false based on success, or a WP_Error object
-         */
-        //public function process_refund( $order_id, $amount = null, $reason = '' ) {
-        //}
+            echo 'Retorno Moeda Digital - Status do pedido: ' . $order_id . '<br/>';
+            $moedadigital_request = array (
+                'username' 		    => $this->username,
+                'password' 	      	=> $this->password,
+                'orderid' 		    => $order_id,
+                'type' 			    => 'ConsultaStatus'
+            );
 
+            $response = $this->post_and_get_response( $moedadigital_request );
+
+            echo 'Status<br/>';
+            echo $response['body'];
+
+            if ( $response['body'] == 'APROVADO') {
+                $order->add_order_note( __( 'Moeda Digital payment completed. Transaction ID: ' , 'woocommerce' ) . $response['transactionid'] );
+                $order->payment_complete();
+            }
+
+
+            exit;
+
+		}
         /****************************************** Painel Administrativo do WordPress/WooCommerce ********************************************************/
 
         /**
@@ -100,7 +121,7 @@ function woocommerce_moeda_digital_init() {
               'default'     => __( 'Moeda Digital', 'woothemes' )
               ),
             'description' => array(
-              'title'       => __( 'Description', 'woothemes' ),
+              'title'       => __( 'Descrição', 'woothemes' ),
               'type'        => 'textarea',
               'description' => __( 'Texto a ser exibido para seu cliente quando finalizar o pedido.', 'woothemes' ),
               'default'     => 'Efetuar o pagamento através da Moeda Digital.'
@@ -172,26 +193,12 @@ function woocommerce_moeda_digital_init() {
             $this->check_payment_method_conversion( $user->user_login, $user->ID );
             if ( $this->user_has_stored_data( $user->ID ) ) { ?>
 						<fieldset>
-							<input type="radio" name="moedadigital-use-stored-payment-info" id="moedadigital-use-stored-payment-info-yes" value="yes" checked="checked" onclick="document.getElementById('moedadigital-new-info').style.display='none'; document.getElementById('moedadigital-stored-info').style.display='block'"; />
+							<input type="radio" name="moedadigital-use-stored-payment-info" 
+                                id="moedadigital-use-stored-payment-info-yes" value="yes" checked="checked" 
+                                onclick="document.getElementById('moedadigital-new-info').style.display='none'; document.getElementById('moedadigital-stored-info').style.display='block'" />
                             <label for="moedadigital-use-stored-payment-info-yes" style="display: inline;"><?php _e( 'Use a stored credit card', 'woocommerce' ) ?></label>
-								<div id="moedadigital-stored-info" style="padding: 10px 0 0 40px; clear: both;">
-						            <?php
-                $i = 0;
-                $method = $this->get_payment_method( $i );
-                while( $method != null ) {
-                                    ?>
-				                    <p>
-				              			<input type="radio" name="moedadigital-payment-method" id="<?php echo $i; ?>" value="<?php echo $i; ?>" <?php if($i == 0){echo 'checked';}?> /> &nbsp;
-											<?php echo $method->cc_number; ?> (<?php
-                    $exp = $method->cc_exp;
-                    echo substr( $exp, 0, 2 ) . '/' . substr( $exp, -2 );
-                                                                               ?>)
-											<br />
-				                    </p>
-				          			<?php
-                    $method = $this->get_payment_method( ++$i );
-                } ?>
-						</fieldset>
+								</div>
+                        </fieldset>
 
 				<?php } else { ?>
               			<fieldset>
@@ -248,7 +255,7 @@ function woocommerce_moeda_digital_init() {
                                       <label id="lblIcon" style="display:none;"><?php echo PLUGIN_DIR ?></label>
 
                                       <label for="ccnum" id="lblccnum"><?php echo __( 'Número do Cartão de Crédito', 'woocommerce' ) ?> <span class="required">*</span></label>
-                                      <img id="imgBandeira" src="<?php echo $this->icon ?>images/blank.png" style="float:right; height: 32px !important;max-height: 32px !important; margin: 0px !important;" />
+                                      <img id="imgBandeira" alt="Bandeira" src="<?php echo $this->icon ?>images/blank.png" style="float:right; height: 32px !important;max-height: 32px !important; margin: 0px !important;" />
                                       <input type="text" class="input-text" id="ccnum" name="ccnum" maxlength="16" onblur="validaCartao();"  style="width:85%;" />
                                   </p>
                                   <div class="clear"></div>
@@ -284,7 +291,7 @@ function woocommerce_moeda_digital_init() {
                                   </p>
                               </div>
 
-                              <div id="divBoleto" name="divBoleto"></div>
+                              <div id="divBoleto"></div>
             			</fieldset>
 			</fieldset>
 <?php
@@ -361,8 +368,7 @@ function woocommerce_moeda_digital_init() {
                 $order->payment_complete();
 
                 $url = $this->get_return_url( $order );
-                // Return thank you redirect
-                return array (
+                 return array (
                   'result'   => 'success',
                   'redirect' => $url,
                 );
@@ -372,33 +378,33 @@ function woocommerce_moeda_digital_init() {
                 // Decline
                 $order->add_order_note( __( 'Transação não aprovada, verifique os dados informados.', 'woocommerce' ) );
                 wc_add_notice( __( 'Transação não aprovada, verifique os dados informados.', 'woocommerce' ), $notice_type = 'error' );
+                return array (
+                    'result'   => 'fail',
+                    'redirect' => '',
+                );
             }
 
             if ( strlen($response['body']) > 8) {
                 if ( substr($response['body'],0,8) == 'PENDENTE') {
 
                     $urlboleto = substr($response['body'],9) ;
+
+
                     $param = base64_encode($order_id  . "|" . substr($response['body'],0,8) . "|" . $urlboleto . "|" .PLUGIN_DIR);
 
                     $order->add_order_note( __( 'Transação pendente. Aguardando confirmação de pagamento do boleto bancário.' .  substr($response['body'],8), 'woocommerce' ) );
-                    //wc_add_notice( __( 'Transação pendente. Aguardando confirmação de pagamento do boleto bancário.' . substr($response['body'],8), 'woocommerce' ), $notice_type = 'error' );
+                    wc_add_notice( __( 'Transação pendente. Aguardando confirmação de pagamento do boleto bancário.' . substr($response['body'],8), 'woocommerce' ), $notice_type = 'error' );
                     $url = $this->get_return_url( $order );
 
                     return array (
                       'result'   => 'success',
-                      'redirect' => PLUGIN_DIR . 'moeda-digital-thankyou.php' . '?param=' . $param, //$url; // .'?' .$urlBoleto,  //$this->get_return_url( $order ),
+                      'redirect' => PLUGIN_DIR . 'moeda-digital-thankyou.php' . '?param=' . $param, 
                     );
                 }
             }
 		}
 
         /*************************************************** Funcões **************************************************************************************/
-
-		/**
-         * Process a payment for an ongoing subscription.
-         */
-        //function process_scheduled_subscription_payment( $amount_to_charge, $order, $product_id ) {
-        //}
 
         /**
          * Get details of a payment method for the current user from the Customer Vault
@@ -456,35 +462,11 @@ function woocommerce_moeda_digital_init() {
         }
 
         /**
-         * Convert any Multiple Billing records stored by the user into Single Billing records
-         */
-        //function convert_mb_payment_methods( $user_login, $user_id ) {
-        //}
-
-        /**
-         * Get the user's Multiple Billing records from the Customer Vault
-         */
-        //function get_mb_payment_methods( $user_login ) {
-        //}
-
-        /**
          * Check if the user has any billing records in the Customer Vault
          */
         function user_has_stored_data( $user_id ) {
-            return false; //get_user_meta( $user_id, 'customer_vault_ids', true ) != null;
+            return false;
         }
-
-        /**
-         * Update a stored billing record with new CC number and expiration
-         */
-        //function update_payment_method( $payment_method, $ccnumber, $ccexp ) {
-        //}
-
-        /**
-         * Delete a stored billing method
-         */
-        //function delete_payment_method( $payment_method ) {
-        //}
 
         /**
          * Check payment details for valid format
@@ -501,7 +483,7 @@ function woocommerce_moeda_digital_init() {
                 return false;
             }
 
-            $card_type =  $this->get_post('lblCardType') ;
+            $card_type           = $this->get_post('lblCardType') ;
             $cardType            = $this->get_post( 'cardtype' );
 			$cardType            = $this->get_post( 'cardtype' );
 			$cardNumber          = $this->get_post( 'ccnum' );
@@ -581,9 +563,6 @@ function woocommerce_moeda_digital_init() {
         /**
          * Add ability to view and edit payment details on the My Account page.(The WooCommerce 'force ssl' option also secures the My Account page, so we don't need to do that.)
          */
-        //function add_payment_method_options() {
-        //}
-
 		function receipt_page( $order ) {
 			echo '<p>' . __( 'Thank you for your order.', 'woocommerce' ) . '</p>';
 		}
