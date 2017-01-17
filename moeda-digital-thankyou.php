@@ -10,19 +10,23 @@
  * happen. When this occurs the version of the template file will be bumped and
  * the readme will list any important changes.
  *
- * @see 	    https://docs.woocommerce.com/document/template-structure/
- * @author 		WooThemes
+ * @see         https://docs.woocommerce.com/document/template-structure/
+ * @author      WooThemes
  * @package 	WooCommerce/Templates
  * @version     2.2.0
  */
 
-$url = 'https://moeda.digital/Modulos/ItauBoleto/Boleto.aspx?Pedido=586c784a595542357330593d';
+//$url = 'https://moeda.digital/Modulos/ItauBoleto/Boleto.aspx?Pedido=586c784a595542357330593d';
 
 $param = $_GET['param'];
 
 $urlBoleto = base64_decode($param);
 
-$p = split('\|', $urlBoleto);
+//echo 'bOLETO:';
+
+//echo $urlBoleto;
+
+$p = explode('|', $urlBoleto);
 
 $order_id = $p[0];
 
