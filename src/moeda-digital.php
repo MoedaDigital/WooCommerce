@@ -1,7 +1,6 @@
 ﻿<?php
-
 /**
- * Plugin Name: WooCommerce - Moeda Digital
+ * Plugin Name: WooCommerce Moeda Digital Gateway
  * Plugin URI: http://docs.moeda.digital/#modulos-e-plugins-woocommerce
  * Description: Aceite as principais bandeiras de cartões em sua loja virtual com WooCommerce de uma forma simples e segura, utilizando o checkout transparente da Moeda Digital.
  * Version: 1.0.0
