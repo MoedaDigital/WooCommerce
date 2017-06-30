@@ -1,10 +1,9 @@
 ﻿<?php
-
 /**
- * Plugin Name: WooCommerce - Moeda Digital
+ * Plugin Name: WooCommerce Moeda Digital Gateway
  * Plugin URI: http://docs.moeda.digital/#modulos-e-plugins-woocommerce
  * Description: Aceite as principais bandeiras de cartões em sua loja virtual com WooCommerce de uma forma simples e segura, utilizando o checkout transparente da Moeda Digital.
- * Version: 1.0.0
+ * Version: 1.0.2
  * Author: Moeda Digital
  * Author URI: https://www.moeda.digital/
  * License: GPL version 2 or later - http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
@@ -16,7 +15,7 @@
 
 
 /*URL de retorno Moeda Digital
-http://www.site.com.br/index.php?wc-api=callbackmoeda&?
+http://www.site.com.br/index.php?wc-api=retorno_moeda_digital&
 */
 
 
@@ -393,12 +392,12 @@ function woocommerce_moeda_digital_init() {
                     $param = base64_encode($order_id  . "|" . substr($response['body'],0,8) . "|" . $urlboleto . "|" .PLUGIN_DIR);
 
                     $order->add_order_note( __( 'Transação pendente. Aguardando confirmação de pagamento do boleto bancário.' .  substr($response['body'],8), 'woocommerce' ) );
-                    wc_add_notice( __( 'Transação pendente. Aguardando confirmação de pagamento do boleto bancário.' . substr($response['body'],8), 'woocommerce' ), $notice_type = 'error' );
+                    wc_add_notice( __( 'Transação pendente. Aguardando confirmação de pagamento do boleto bancário.' ." <a href='". $urlboleto, 'woocommerce' ) . "'>Abrir Boleto</a>", $notice_type = 'error' );
                     $url = $this->get_return_url( $order );
 
                     return array (
                       'result'   => 'success',
-                      'redirect' => PLUGIN_DIR . 'moeda-digital-thankyou.php' . '?param=' . $param, 
+                      'redirect' =>  $urlboleto, //index.php/md-thank-you' . '?param=' . $param, 
                     );
                 }
             }
