@@ -3,7 +3,7 @@
  * Plugin Name: WooCommerce Moeda Digital Gateway
  * Plugin URI: http://docs.moeda.digital/#modulos-e-plugins-woocommerce
  * Description: Aceite as principais bandeiras de cartões em sua loja virtual com WooCommerce de uma forma simples e segura, utilizando o checkout transparente da Moeda Digital.
- * Version: 1.0.2
+ * Version: 1.1.0
  * Author: Moeda Digital
  * Author URI: https://www.moeda.digital/
  * License: GPL version 2 or later - http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
@@ -25,14 +25,15 @@ add_action( 'plugins_loaded', 'woocommerce_moeda_digital_init', 0 );
 
 function woocommerce_moeda_digital_init() {
 
-	if ( ! class_exists( 'WC_Payment_Gateway' ) ) {
+  if ( ! class_exists( 'WC_Payment_Gateway' ) ) {
         return;
     };
 
     DEFINE ('PLUGIN_DIR', plugins_url( basename( plugin_dir_path( __FILE__ ) ), basename( __FILE__ ) ) . '/' );
     DEFINE ('GATEWAY_URL', 'https://moeda.digital/Modulos/WooCommerce/Modulo.aspx?');
+    DEFINE ('SANDBOX_URL', 'https://sandbox.moeda.digital/Modulos/WooCommerce/Modulo.aspx?');
 
-	/**
+  /**
      * Moeda Digital Gateway Class
      */
     class WC_MoedaDigital extends WC_Payment_Gateway {
@@ -40,7 +41,7 @@ function woocommerce_moeda_digital_init() {
         function __construct() {
 
             // Register plugin information
-            $this->id			    = 'moedadigital';
+            $this->id         = 'moedadigital';
             $this->has_fields = true;
             $this->supports   = array(
                  'products',
@@ -69,41 +70,102 @@ function woocommerce_moeda_digital_init() {
             add_action( 'woocommerce_update_options_payment_gateways',              array( $this, 'process_admin_options' ) );
             add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
             add_action( 'wp_enqueue_scripts',                                       array( $this, 'add_moeda_digital_scripts' ) );
-			add_action( 'woocommerce_api_retorno_moeda_digital',                    array( $this, 'retorno_moeda_digital' ));
+            add_action( 'woocommerce_api_retorno_moeda_digital',                    array( $this, 'retorno_moeda_digital' ));
+            add_action( 'woocommerce_thankyou_' . $this->id, array( $this, 'thankyou_page' ) );
+
         }
-		
-		function retorno_moeda_digital(){
+    
+    function retorno_moeda_digital(){
             $order_id = (int)$_GET['?pedido'];
             $order = wc_get_order( $order_id );
 
             echo 'Retorno Moeda Digital - Status do pedido: ' . $order_id . '<br/>';
             $moedadigital_request = array (
-                'username' 		    => $this->username,
-                'password' 	      	=> $this->password,
-                'orderid' 		    => $order_id,
-                'type' 			    => 'ConsultaStatus'
+                'username'        => $this->username,
+                'password'          => $this->password,
+                'orderid'         => $order_id,
+                'type'          => 'ConsultaStatus'
             );
 
             $response = $this->post_and_get_response( $moedadigital_request );
+            $ok = $this->update_order_status($response['body'] , $order);
 
-            echo 'Status<br/>';
-            echo $response['body'];
-
-            if ( $response['body'] == 'APROVADO') {
-                $order->add_order_note( __( 'Moeda Digital payment completed. Transaction ID: ' , 'woocommerce' ) . $response['transactionid'] );
-                $order->payment_complete();
+            if($ok){
+              echo 'Status<br/>';
+              echo $response['body'];
+            } else {
+              echo 'Fail';
             }
-
 
             exit;
 
-		}
+    }
+
+
+   public function update_order_status($status, $order){
+
+        $ordernote = 'Moeda Digital status: %s - %s';
+        $msg = '';
+        $wostatus = '';
+
+        switch ($status) {
+          case 'PENDENTE':
+              $msg = 'Pedido criado, aguardando pagamento';
+              $wostatus = 'on-hold';
+            break;
+          case 'CANCELADO':
+              $msg = 'Pedido cancelado.';
+              $wostatus = 'cancelled';
+          break;
+          case 'EM ANALISE':
+              $msg = 'Pagamento aguardando aprovação da Moeda Digital';
+              $wostatus = 'on-hold';
+          break;
+          case 'ESTORNADO':
+              $msg = 'Pagamento estornado';
+              $wostatus = 'refunded';
+          break;
+          case 'CHARGEBACK':
+              $msg = 'Pagamento contestado';
+              $wostatus = 'refunded';
+          break;
+           case 'NEGADO':
+              $msg = 'Pagamento negado';
+              $wostatus = 'failed';
+            break;
+          case 'APROVADO':
+              $msg = 'Pagamento aprovado';
+              $ok = $order->payment_complete();
+              if($ok){
+                if($this->processing = 'yes'){
+                  $wostatus = 'completed';
+                }else  {
+                  $wostatus = 'processing';
+                }
+              }
+          break;
+          default:
+              $msg = 'Problema ao atualizar status, verificar manualmente.';              
+            break;
+          }
+
+          if($wostatus !=  ''){
+             echo $wostatus;
+            $order->update_status($wostatus, $msg);
+            $ordernote = sprintf($ordernote, $status, $msg);
+            return true;
+          } else {
+            $ordernote = sprintf($ordernote, '', $msg);
+            return false;
+          }    
+
+    }
         /****************************************** Painel Administrativo do WordPress/WooCommerce ********************************************************/
 
         /**
          * Initialize Gateway Settings Form Fields.
          */
-	    function init_form_fields() {
+      function init_form_fields() {
 
             $this->form_fields = array(
             'enabled'     => array(
@@ -112,18 +174,6 @@ function woocommerce_moeda_digital_init() {
               'type'        => 'checkbox',
               'description' => '',
               'default'     => 'no'
-              ),
-            'title'       => array(
-              'title'       => __( 'Título', 'woothemes' ),
-              'type'        => 'text',
-              'description' => __( 'Título a ser exibido para seu cliente quando finalizar o pedido.', 'woothemes' ),
-              'default'     => __( 'Moeda Digital', 'woothemes' )
-              ),
-            'description' => array(
-              'title'       => __( 'Descrição', 'woothemes' ),
-              'type'        => 'textarea',
-              'description' => __( 'Texto a ser exibido para seu cliente quando finalizar o pedido.', 'woothemes' ),
-              'default'     => 'Efetuar o pagamento através da Moeda Digital.'
               ),
             'username'    => array(
               'title'       => __( 'Token', 'woothemes' ),
@@ -137,19 +187,47 @@ function woocommerce_moeda_digital_init() {
               'description' => __( 'Nome da apliação cadastrada no Moeda Digital.', 'woothemes' ),
               'default'     => ''
               ),
-              );
+            /*'enabled'     => array(
+              'title'       => __( 'Ambiente', 'woothemes' ),
+              'label'       => __( 'Para utilizar em produção sua loja deve estar habilitada', 'woothemes' ),
+              'options' => array( 'producao' =>'Produção' , 'sandbox' => 'Sandbox' ),
+              'type'        => 'select',
+              'description' => '',
+              'default'     => 'no'
+              ),
+              */
+            'title'       => array(
+              'title'       => __( 'Título', 'woothemes' ),
+              'type'        => 'text',
+              'description' => __( 'Título a ser exibido para seu cliente quando finalizar o pedido.', 'woothemes' ),
+              'default'     => __( 'Moeda Digital', 'woothemes' )
+              ),
+            'description' => array(
+              'title'       => __( 'Descrição', 'woothemes' ),
+              'type'        => 'textarea',
+              'description' => __( 'Texto a ser exibido para seu cliente quando finalizar o pedido.', 'woothemes' ),
+              'default'     => 'Efetuar o pagamento através da Moeda Digital.'
+              ),
+            'processing'     => array(
+              'title'       => __( 'Completar automaticamente', 'woothemes' ),
+              'label'       => __( 'Quando um pedido for pago, mudar o status de Processing para Completed automaticamente.', 'woothemes' ),
+              'type'        => 'checkbox',
+              'description' => '',
+              'default'     => 'no'
+              ),
+            );
         }
 
         /**
          * UI - Admin Panel Options
          */
         function admin_options() { ?>
-				<h3><?php _e( 'Moeda Digital','woothemes' ); ?></h3>
-			    <p><?php _e( 'Moeda Digital é a forma mais simples e segura de receber pagamentos em sua loja virtual.  Este plugin adiciona as principais bandeiras de cartões em seu site e processa pagamento. Mais detalhes em Moeda Digital.  <a href="https://moeda.digital/woocommerce/">Clique aqui</a>.', 'woothemes' ); ?></p>
-			    <table class="form-table">
-					<?php $this->generate_settings_html(); ?>
-				</table>
-			<?php }
+        <h3><?php _e( 'Moeda Digital','woothemes' ); ?></h3>
+          <p><?php _e( 'Moeda Digital é a forma mais simples e segura de receber pagamentos em sua loja virtual.  Este plugin adiciona as principais bandeiras de cartões em seu site e processa pagamento. Mais detalhes em Moeda Digital.  <a href="https://moeda.digital/woocommerce/">Clique aqui</a>.', 'woothemes' ); ?></p>
+          <table class="form-table">
+          <?php $this->generate_settings_html(); ?>
+        </table>
+      <?php }
 
         /***************************************************************** Tela de Pagamento do Pedido *************************************************/
         /**
@@ -161,18 +239,18 @@ function woocommerce_moeda_digital_init() {
             $amount = WC()->cart->total * 100;
 
             $moedadigital_request = array (
-                      'username' 		    => $this->username,
-                      'password' 	      	=> $this->password,
-                      'amount' 		      	=> $amount,
-                      'type' 			    => 'ConsultaParcelas'
+                      'username'        => $this->username,
+                      'password'          => $this->password,
+                      'amount'            => $amount,
+                      'type'          => 'ConsultaParcelas'
               );
 
             $response = $this->post_and_get_response( $moedadigital_request );
 
             // Description of payment method from settings
             if ( $this->description ) { ?>
-            		<p><?php echo $this->description; ?></p>
-      		<?php } ?>
+                <p><?php echo $this->description; ?></p>
+          <?php } ?>
 
     <style>
     #payment .payment_methods li img {
@@ -186,30 +264,30 @@ function woocommerce_moeda_digital_init() {
     }
     </style>
 
-			<fieldset  style="padding-left: 40px;">
-		        <?php
+      <fieldset  style="padding-left: 40px;">
+            <?php
             $user = wp_get_current_user();
             $this->check_payment_method_conversion( $user->user_login, $user->ID );
             if ( $this->user_has_stored_data( $user->ID ) ) { ?>
-						<fieldset>
-							<input type="radio" name="moedadigital-use-stored-payment-info" 
+            <fieldset>
+              <input type="radio" name="moedadigital-use-stored-payment-info" 
                                 id="moedadigital-use-stored-payment-info-yes" value="yes" checked="checked" 
                                 onclick="document.getElementById('moedadigital-new-info').style.display='none'; document.getElementById('moedadigital-stored-info').style.display='block'" />
                             <label for="moedadigital-use-stored-payment-info-yes" style="display: inline;"><?php _e( 'Use a stored credit card', 'woocommerce' ) ?></label>
-								</div>
+                </div>
                         </fieldset>
 
-				<?php } else { ?>
-              			<fieldset>
-              				<!-- Show input boxes for new data -->
-              				<div id="moedadigital-new-info" ></div>
-              					<?php } ?>
+        <?php } else { ?>
+                    <fieldset>
+                      <!-- Show input boxes for new data -->
+                      <div id="moedadigital-new-info" ></div>
+                        <?php } ?>
 
                               <!-- Credit card type -->
-                    		  <p class="form-row ">
+                          <p class="form-row ">
 
-                      			  <label for="cardtype"><?php echo __( 'Meio de Pagamento', 'woocommerce' ) ?> <span class="required">*</span></label>
-                      			  <select name="cardtype" id="cardtype" class="woocommerce-select" onchange="cardtype_change()">
+                              <label for="cardtype"><?php echo __( 'Meio de Pagamento', 'woocommerce' ) ?> <span class="required">*</span></label>
+                              <select name="cardtype" id="cardtype" class="woocommerce-select" onchange="cardtype_change()">
 
                                   <?php
             $pos = strpos($response['body'], 'parcela');
@@ -222,10 +300,10 @@ function woocommerce_moeda_digital_init() {
             if ($pos !== false) {  ?>
                                       <option value="boleto">Boleto Bancário</option>
                                   <?php } ?>
-                       			  </select>
-                    		  </p>
+                              </select>
+                          </p>
 
-							  <div class="clear"></div>
+                <div class="clear"></div>
 
                               <!-- Credit card type -->
                               <p class="form-row ">
@@ -291,28 +369,28 @@ function woocommerce_moeda_digital_init() {
                               </div>
 
                               <div id="divBoleto"></div>
-            			</fieldset>
-			</fieldset>
+                  </fieldset>
+      </fieldset>
 <?php
         }
 
-		/**
+    /**
          * Process the payment and return the result.
          */
-		function process_payment( $order_id ) {
+    function process_payment( $order_id ) {
 
-			global $woocommerce;
-			$order = new WC_Order( $order_id );
-            $user = new WP_User( $order->user_id );
-            $this->check_payment_method_conversion( $user->user_login, $user->ID );
+      global $woocommerce;
+        $order = wc_get_order( $order_id );
+        $user = new WP_User( $order->user_id );
+        $this->check_payment_method_conversion( $user->user_login, $user->ID );
 
-			// Convert CC expiration date from (M)M-YYYY to MMYY
-			$expmonth = $this->get_post( 'expmonth' );
-			if ( $expmonth < 10 ) $expmonth = '0' . $expmonth;
-			if ( $this->get_post( 'expyear' ) != null ) $expyear = substr( $this->get_post( 'expyear' ), -2 );
+      // Convert CC expiration date from (M)M-YYYY to MMYY
+      $expmonth = $this->get_post( 'expmonth' );
+      if ( $expmonth < 10 ) $expmonth = '0' . $expmonth;
+      if ( $this->get_post( 'expyear' ) != null ) $expyear = substr( $this->get_post( 'expyear' ), -2 );
 
             // Create server request using stored or new payment details
-			if ( $this->get_post( 'moedadigital-use-stored-payment-info' ) == 'yes' ) {
+      if ( $this->get_post( 'moedadigital-use-stored-payment-info' ) == 'yes' ) {
 
                 // Short request, use stored billing details
                 $customer_vault_ids = get_user_meta( $user->ID, 'customer_vault_ids', true );
@@ -328,17 +406,17 @@ function woocommerce_moeda_digital_init() {
 
                 // Full request, new customer or new information
                 $base_request = array (
-                  'ccnumber' 	=> $this->get_post( 'ccnum' ),
-                  'cvv' 		=> $this->get_post( 'cvv' ),
-                  'ccexp' 		=> $expmonth . $expyear,
+                  'ccnumber'  => $this->get_post( 'ccnum' ),
+                  'cvv'     => $this->get_post( 'cvv' ),
+                  'ccexp'     => $expmonth . $expyear,
                   'firstname'   => $order->billing_first_name,
-                  'lastname' 	=> $order->billing_last_name,
-                  'address1' 	=> $order->billing_address_1,
-                  'city' 	    => $order->billing_city,
-                  'state' 		=> $order->billing_state,
-                  'zip' 		=> $order->billing_postcode,
-                  'country' 	=> $order->billing_country,
-                  'phone' 		=> $order->billing_phone,
+                  'lastname'  => $order->billing_last_name,
+                  'address1'  => $order->billing_address_1,
+                  'city'      => $order->billing_city,
+                  'state'     => $order->billing_state,
+                  'zip'     => $order->billing_postcode,
+                  'country'   => $order->billing_country,
+                  'phone'     => $order->billing_phone,
                   'email'       => $order->billing_email,
                   );
             }
@@ -348,61 +426,106 @@ function woocommerce_moeda_digital_init() {
             $transaction_details = array (
               'username'  => $this->username,
               'password'  => $this->password,
-              'amount' 	  => $order->order_total,
-              'type' 	  => $this->salemethod,
+              'amount'    => $order->order_total,
+              'type'    => $this->salemethod,
               'payment'   => $card_type,
-              'value' 	  => $this->get_post('paymenttypevalue'),
+              'value'     => $this->get_post('paymenttypevalue'),
               'orderid'   => $order->id,
               'ipaddress' => $_SERVER['REMOTE_ADDR'],
               );
 
             // Send request and get response from server
             $response = $this->post_and_get_response( array_merge( $base_request, $transaction_details ) );
-            $order->add_order_note( __($response['body'] , 'woocommerce' ) );
+            //$order->add_order_note( __($response['body'] , 'woocommerce' ) );
+            
+            $status = 'ERROR';
+            $url = "";
+            $nota = "Houve um problema com o pagamento, tente novamente.";
+            $url = "";
 
             // Check response
             if ( $response['body'] == 'APROVADO') {
                 // Success
-                $order->add_order_note( __( 'Moeda Digital payment completed. Transaction ID: ' , 'woocommerce' ) . $response['transactionid'] );
-                $order->payment_complete();
-
+                $status = 'APROVADO';
                 $url = $this->get_return_url( $order );
-                 return array (
-                  'result'   => 'success',
-                  'redirect' => $url,
-                );
+                $nota = 'Transação aprovada';
+
+                wc_add_notice( __( 'Transação aprovada!', 'woocommerce' ), $notice_type = 'success' );
             }
 
             if ( $response['body'] == 'NEGADO') {
                 // Decline
-                $order->add_order_note( __( 'Transação não aprovada, verifique os dados informados.', 'woocommerce' ) );
-                wc_add_notice( __( 'Transação não aprovada, verifique os dados informados.', 'woocommerce' ), $notice_type = 'error' );
-                return array (
-                    'result'   => 'fail',
-                    'redirect' => '',
-                );
+                $status = 'NEGADO';
+                $url = '';
+
+                wc_add_notice( __( 'Transação não aprovada, verifique os dados informados.', 'woocommerce' ), $notice_type = 'error' );                
             }
 
             if ( strlen($response['body']) > 8) {
                 if ( substr($response['body'],0,8) == 'PENDENTE') {
-
-                    $urlboleto = substr($response['body'],9) ;
-
-
-                    $param = base64_encode($order_id  . "|" . substr($response['body'],0,8) . "|" . $urlboleto . "|" .PLUGIN_DIR);
-
-                    $order->add_order_note( __( 'Transação pendente. Aguardando confirmação de pagamento do boleto bancário.' .  substr($response['body'],8), 'woocommerce' ) );
-                    wc_add_notice( __( 'Transação pendente. Aguardando confirmação de pagamento do boleto bancário.' ." <a href='". $urlboleto, 'woocommerce' ) . "'>Abrir Boleto</a>", $notice_type = 'error' );
+                    $status = 'PENDENTE';                
+                    $urlcheckout = substr($response['body'],9) ;
                     $url = $this->get_return_url( $order );
+                    $order->add_order_note( __( 'Link para pagamento externo:' . $url  ) );
+                    $result = 'success';
+                   
 
-                    return array (
-                      'result'   => 'success',
-                      'redirect' =>  $urlboleto, //index.php/md-thank-you' . '?param=' . $param, 
-                    );
+                    if ( method_exists( $order, 'update_meta_data' ) ) {
+                       $order->update_meta_data( 'md_checkout_url', $urlcheckout );
+                       $order->save();
+                    } else {
+                        update_post_meta( $order->id, 'md_checkout_url' , $urlcheckout );
+                    }
+
+                    wc_add_notice( __( 'Transação pendente: aguardando confirmação de pagamento. ' ." <a href='". $urlcheckout, 'woocommerce' ) . "'>Abrir janela de pagamento</a>", $notice_type = 'notice' );
                 }
             }
-		}
 
+            $this->update_order_status($status,$order);
+
+
+            if($url != '')
+            {
+              return array (
+                  'result'   => 'success',
+                  'redirect' => $url,
+              );
+            }else {
+              return null;
+            }
+
+            
+    }
+
+    public function thankyou_page( $order_id ) {
+        $order = wc_get_order( $order_id );
+
+        if ( method_exists( $order, 'get_meta' ) ) {
+          $checkout = $order->get_meta( 'md_checkout_url' );
+        } else {
+          $checkout = get_post_meta( $order->id, 'md_checkout_url', true );
+        }
+
+        echo sprintf(
+        '<div class="woocommerce-message">
+            <span>Seu pedido foi efetuado com sucesso e está aguardando o pagamento, caso uma janela para finalizar o pagamento não tenha sido aberta, porfavor clique na imagem a baixo.</span>
+            <form action="%s" method="POST" id="mdForm" name="mdForm" target="checkout">
+            <input type="image" src="%s" onclick="document.mdForm.submit()" alt="checkout" />
+            </form>
+            <script language="Javascript">
+            try{
+              window.onload = function(){
+                document.mdForm.submit();
+              };
+            } 
+            catch(e){
+
+            }
+            </script>
+        </div>', $checkout, 'https://moeda.digital/images/boleto.png');
+
+            
+    }
         /*************************************************** Funcões **************************************************************************************/
 
         /**
@@ -417,8 +540,8 @@ function woocommerce_moeda_digital_init() {
             if( $payment_method_number >= count( $customer_vault_ids ) ) return null;
 
             $query = array (
-              'username' 		  => $this->username,
-              'password' 	      => $this->password,
+              'username'      => $this->username,
+              'password'        => $this->password,
               'report_type'       => 'customer_vault',
               );
 
@@ -470,25 +593,25 @@ function woocommerce_moeda_digital_init() {
         /**
          * Check payment details for valid format
          */
-		function validate_fields() {
+    function validate_fields() {
 
             if ( $this->get_post( 'moedadigital-use-stored-payment-info' ) == 'yes' ) return true;
 
-			global $woocommerce;
+      global $woocommerce;
 
-			// Check for saving payment info without having or creating an account
-			if ( $this->get_post( 'saveinfo' )  && ! is_user_logged_in() && ! $this->get_post( 'createaccount' ) ) {
+      // Check for saving payment info without having or creating an account
+      if ( $this->get_post( 'saveinfo' )  && ! is_user_logged_in() && ! $this->get_post( 'createaccount' ) ) {
                 wc_add_notice( __( 'Sorry, you need to create an account in order for us to save your payment information.', 'woocommerce'), $notice_type = 'error' );
                 return false;
             }
 
             $card_type           = $this->get_post('lblCardType') ;
             $cardType            = $this->get_post( 'cardtype' );
-			$cardType            = $this->get_post( 'cardtype' );
-			$cardNumber          = $this->get_post( 'ccnum' );
-			$cardCSC             = $this->get_post( 'cvv' );
-			$cardExpirationMonth = $this->get_post( 'expmonth' );
-			$cardExpirationYear  = $this->get_post( 'expyear' );
+      $cardType            = $this->get_post( 'cardtype' );
+      $cardNumber          = $this->get_post( 'ccnum' );
+      $cardCSC             = $this->get_post( 'cvv' );
+      $cardExpirationMonth = $this->get_post( 'expmonth' );
+      $cardExpirationYear  = $this->get_post( 'expyear' );
 
             if ($card_type != 'Boleto'){
                 // Check card number
@@ -525,11 +648,11 @@ function woocommerce_moeda_digital_init() {
                 // Strip spaces and dashes
                 $cardNumber = str_replace( array( ' ', '-' ), '', $cardNumber );
             }
-			return true;
+      return true;
 
-		}
+    }
 
-		/**
+    /**
          * Send the payment data to the gateway server and return the response.
          */
         private function post_and_get_response( $request ) {
@@ -538,7 +661,7 @@ function woocommerce_moeda_digital_init() {
             // Encode request
             $post = http_build_query( $request, '', '&' );
 
-			// Send request
+      // Send request
             $content = wp_remote_post( GATEWAY_URL, array(
                 'body'        => $post,
                 'timeout'     => 45,
@@ -562,9 +685,9 @@ function woocommerce_moeda_digital_init() {
         /**
          * Add ability to view and edit payment details on the My Account page.(The WooCommerce 'force ssl' option also secures the My Account page, so we don't need to do that.)
          */
-		function receipt_page( $order ) {
-			echo '<p>' . __( 'Thank you for your order.', 'woocommerce' ) . '</p>';
-		}
+    function receipt_page( $order ) {
+      echo '<p>' . __( 'Thank you for your order.', 'woocommerce' ) . '</p>';
+    }
 
         /**
          * Include jQuery and our scripts
@@ -582,24 +705,24 @@ function woocommerce_moeda_digital_init() {
             global $user_login;
             get_currentuserinfo();
             return $user_login;
-		}
+    }
 
-		/**
+    /**
          * Get post data if set
          */
-		private function get_post( $name ) {
-			if ( isset( $_POST[ $name ] ) ) {
-				return $_POST[ $name ];
-			}
-			return null;
-		}
+    private function get_post( $name ) {
+      if ( isset( $_POST[ $name ] ) ) {
+        return $_POST[ $name ];
+      }
+      return null;
+    }
 
-		/**
+    /**
          * Check whether an order is a subscription
          */
-		private function is_subscription( $order ) {
+    private function is_subscription( $order ) {
             return class_exists( 'WC_Subscriptions_Order' ) && WC_Subscriptions_Order::order_contains_subscription( $order );
-		}
+    }
 
         /**
          * Generate a string of 36 alphanumeric characters to associate with each saved billing method.
@@ -613,15 +736,15 @@ function woocommerce_moeda_digital_init() {
             }
             return $key;
         }
-	}
+  }
 
-	/**
+  /**
      * Add the gateway to woocommerce
      */
-	function add_moeda_digital_gateway( $methods ) {
-		$methods[] = 'WC_MoedaDigital';
-		return $methods;
-	}
+  function add_moeda_digital_gateway( $methods ) {
+    $methods[] = 'WC_MoedaDigital';
+    return $methods;
+  }
 
-	add_filter( 'woocommerce_payment_gateways', 'add_moeda_digital_gateway' );
+  add_filter( 'woocommerce_payment_gateways', 'add_moeda_digital_gateway' );
 }
