@@ -523,7 +523,7 @@ function woocommerce_moeda_digital_init() {
 
             }
             </script>
-        </div>', $checkout, 'https://moeda.digital/images/boleto.png');
+        </div>', $checkout, PLUGIN_DIR.'images/boleto.png');
 
             
     }
