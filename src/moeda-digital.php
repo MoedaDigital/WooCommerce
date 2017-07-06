@@ -439,9 +439,9 @@ function woocommerce_moeda_digital_init() {
             //$order->add_order_note( __($response['body'] , 'woocommerce' ) );
             
             $status = 'ERROR';
-            $url = "";
-            $nota = "Houve um problema com o pagamento, tente novamente.";
-            $url = "";
+            $url = '';
+            $nota = 'Houve um problema com o pagamento, tente novamente.';
+            $url = '';
 
             // Check response
             if ( $response['body'] == 'APROVADO') {
@@ -491,6 +491,7 @@ function woocommerce_moeda_digital_init() {
                   'redirect' => $url,
               );
             }else {
+              wc_add_notice( __( $nota, 'woocommerce' ), $notice_type = 'error' );                
               return null;
             }
 
@@ -508,7 +509,7 @@ function woocommerce_moeda_digital_init() {
 
         echo sprintf(
         '<div class="woocommerce-message">
-            <span>Seu pedido foi efetuado com sucesso e está aguardando o pagamento, caso uma janela para finalizar o pagamento não tenha sido aberta, porfavor clique na imagem a baixo.</span>
+            <span>Seu pedido foi efetuado com sucesso e está aguardando o pagamento, caso uma janela para finalizar o pagamento não tenha sido aberta, clique na imagem a baixo.</span>
             <form action="%s" method="POST" id="mdForm" name="mdForm" target="checkout">
             <input type="image" src="%s" onclick="document.mdForm.submit()" alt="checkout" />
             </form>
