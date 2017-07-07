@@ -138,7 +138,7 @@ function woocommerce_moeda_digital_init() {
 							$msg = 'Pagamento aprovado';
 							$ok = $order->payment_complete();
 							if($ok){
-								if($this->processing = 'yes'){
+								if($this->processing != 'no'){
 									$wostatus = 'completed';
 								}else  {
 									$wostatus = 'processing';
@@ -249,10 +249,21 @@ function woocommerce_moeda_digital_init() {
 							);
 
 						$response = $this->post_and_get_response( $moedadigital_request );
+            $meios = '';
+            if($response['body'][0] == '$'){
+              $p = strpos($response['body'],'@');
 
+              $meiosJ = substr($response['body'],1, $p-1);
+              $meios = json_decode($meiosJ);
+
+              $response['body'] = substr($response['body'], $p+1);
+
+            }
+   
 						// Description of payment method from settings
 						if ( $this->description ) { ?>
 								<p><?php echo $this->description; ?></p>
+
 					<?php } ?>
 
 <style>
@@ -260,10 +271,20 @@ function woocommerce_moeda_digital_init() {
    max-height: 4em;
    margin-top: -50px;
    }
-   .woocommerce-select{
+   .woocommerce-select-md{
    height: 35px;
    border: 1px solid #ccc;
    border-radius: 3px 3px 0 0;
+   }
+   .input-text-md {
+       height: 35px;
+   border: 1px solid #ccc;
+   border-radius: 3px 3px 0 0;
+   }
+   .bandeiras-md{
+      max-height: 40px;
+      border-bottom: 5px;
+      border-top: -5px;
    }
 </style>
 <fieldset  style="padding-left: 40px;">
@@ -275,7 +296,8 @@ function woocommerce_moeda_digital_init() {
       <input type="radio" name="moedadigital-use-stored-payment-info" 
          id="moedadigital-use-stored-payment-info-yes" value="yes" checked="checked" 
          onclick="document.getElementById('moedadigital-new-info').style.display='none'; document.getElementById('moedadigital-stored-info').style.display='block'" />
-      <label></label>bel for="moedadigital-use-stored-payment-info-yes" style="display: inline;"><?php _e( 'Use a stored credit card', 'woocommerce' ) ?></label>
+      <label for="moedadigital-use-stored-payment-info-yes" style="display: inline;"><?php _e( 'Usar cartão salvo', 'woocommerce' ) ?>
+      </label>
       </div>
    </fieldset>
    <?php } else { ?>
@@ -285,7 +307,7 @@ function woocommerce_moeda_digital_init() {
    <!-- Credit card type -->
    <p class="form-row ">
       <label for="cardtype"><?php echo __( 'Meio de Pagamento', 'woocommerce' ) ?> <span class="required">*</span></label>
-      <select name="cardtype" id="cardtype" class="woocommerce-select" onchange="cardtype_change()">
+      <select name="cardtype" id="cardtype" class="woocommerce-select-md" onchange="cardtype_change()">
          <?php
             $pos = strpos($response['body'], 'parcela');
             if ($pos !== false) {  ?>
@@ -302,12 +324,12 @@ function woocommerce_moeda_digital_init() {
    <!-- Credit card type -->
    <p class="form-row ">
       <label for="paymenttype"><?php echo __( 'Forma de Pagamento', 'woocommerce' ) ?> <span class="required">*</span></label>
-      <select name="paymenttypecc" id="paymenttypecc" class="woocommerce-select" onchange="paymenttypecc_change()">
+      <select name="paymenttypecc" id="paymenttypecc" class="woocommerce-select-md" onchange="paymenttypecc_change()">
       <?php
          $pos = strpos($response['body'], '@');
          echo substr($response['body'],0,$pos); ?>
       </select>
-      <select name="paymenttypebb" id="paymenttypebb" class="woocommerce-select" style="display:none;">
+      <select name="paymenttypebb" id="paymenttypebb" class="woocommerce-select-md" style="display:none;">
       <?php
          $pos = strpos($response['body'], '@');
          echo substr($response['body'],$pos); ?>
@@ -316,22 +338,31 @@ function woocommerce_moeda_digital_init() {
          $pos = strpos($response['body'], '>');
          echo substr($response['body'],14,$pos-14); ?>" />
    </p>
+
    <div class="clear"></div>
    <input id="lblCardType" name="lblCardType" style="display:none;" value="" />
    <div id="divCard">
+   <p class="form-row">
+   </p>
       <!-- Credit card number -->
       <p class="form-row ">
+         <?php
+              foreach ($meios as  $meio) {
+              if($meio->Tipo== 'CREDITO'){
+               echo '<img class="bandeiras-md" <?php echo src="' . $meio->Imagem . '"/>' ;
+              }
+            }
+            ?>
          <label id="lblIcon" style="display:none;"><?php echo PLUGIN_DIR ?></label>
          <label for="ccnum" id="lblccnum"><?php echo __( 'Número do Cartão de Crédito', 'woocommerce' ) ?> <span class="required">*</span></label>
          <img id="imgBandeira" alt="Bandeira" src="<?php echo $this->icon ?>images/blank.png" style="float:right; height: 32px !important;max-height: 32px !important; margin: 0px !important;" />
-         <input type="text" class="input-text" id="ccnum" name="ccnum" maxlength="16" onblur="validaCartao();"  style="width:85%;" />
+         <input type="text" class="input-text-md" id="ccnum" name="ccnum" maxlength="16" onblur="validaCartao();"  style="width:85%;" />
       </p>
       <div class="clear"></div>
       <!-- Credit card expiration -->
       <p class="form-row form-row-first">
-      <div>
          <label for="cc-expire-month" id="lbl-cc-expire-month"><?php echo __( 'Validade ', 'woocommerce') ?> <span class="required">*</span></label>
-         <select name="expmonth" id="expmonth" class="woocommerce-select woocommerce-cc-month">
+         <select name="expmonth" id="expmonth" class="woocommerce-select-md woocommerce-cc-month">
             <option value=""><?php _e( 'Mês', 'woocommerce' ) ?></option>
             <?php
                $months = array();
@@ -341,9 +372,7 @@ function woocommerce_moeda_digital_init() {
                }
                                                                                                          ?>
          </select>
-
-           <label for="cc-expire-year"><?php echo __( '', 'woocommerce') ?> <span class="required">*</span></label>
-         <select name="expyear" id="expyear" class="woocommerce-select woocommerce-cc-year">
+         <select name="expyear" id="expyear" class="woocommerce-select-md woocommerce-cc-year">
             <option value=""><?php _e( 'Ano', 'woocommerce' ) ?></option>
             <?php
                $years = array();
@@ -352,12 +381,11 @@ function woocommerce_moeda_digital_init() {
                }
                                                                                                          ?>
          </select>
-         </div>
       </p>
-      <div class="clear"></div>
-      <p class="form-row">
+      <p class="form-row form-row-last">
          <label for="cvv" id="lblcvv"><?php _e( 'Codigo de Seguraça', 'woocommerce' ) ?> <span class="required">*</span></label>
-         <input oninput="validate_cvv(this.value)" type="text" class="input-text" id="cvv" name="cvv" maxlength="4" style="width:45px" />
+         <input oninput="validate_cvv(this.value)" type="text" class="input-text-md" id="cvv" name="cvv" maxlength="4" style="width:80px" />
+         <br>
          <span class="help" id="lblhelp"><?php _e( '3 ou 4 digitos localizados no verso do cartão.', 'woocommerce' ) ?></span>
       </p>
    </div>
