@@ -30,9 +30,8 @@ function woocommerce_moeda_digital_init() {
 		};
 
 		DEFINE ('PLUGIN_DIR', plugins_url( basename( plugin_dir_path( __FILE__ ) ), basename( __FILE__ ) ) . '/' );
-		//DEFINE ('GATEWAY_URL', 'https://moeda.digital/Modulos/WooCommerce/Modulo.aspx?');
-		DEFINE ('GATEWAY_URL', 'http://localhost:23295/Modulos/WooCommerce/Modulo.aspx?');
-		DEFINE ('SANDBOX_URL', 'https://sandbox.moeda.digital/Modulos/WooCommerce/Modulo.aspx?');
+		DEFINE ('GATEWAY_URL', 'https://moeda.digital/Modulos/WooCommerce/Modulo.aspx?');
+		//DEFINE ('SANDBOX_URL', 'https://sandbox.moeda.digital/Modulos/WooCommerce/Modulo.aspx?');
 
 	/**
 		 * Moeda Digital Gateway Class
