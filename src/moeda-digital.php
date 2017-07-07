@@ -11,11 +11,12 @@
  * @package WordPress
  * @author Moeda Digital
  * @since 1.0.0
+ * @version 1.1.0
  */
 
 
 /*URL de retorno Moeda Digital
-http://www.site.com.br/index.php?wc-api=retorno_moeda_digital&
+http://www.site.com.br/index.php?wc-api=retorno_moeda_digital&?
 */
 
 
@@ -225,7 +226,7 @@ function woocommerce_moeda_digital_init() {
 				 */
 				function admin_options() { ?>
 				<h3><?php _e( 'Moeda Digital','woothemes' ); ?></h3>
-					<p><?php _e( 'Moeda Digital é a forma mais simples e segura de receber pagamentos em sua loja virtual.  Este plugin adiciona as principais bandeiras de cartões em seu site e processa pagamento. Mais detalhes em Moeda Digital.  <a href="https://moeda.digital/woocommerce/">Clique aqui</a>.', 'woothemes' ); ?></p>
+					<p><?php _e( 'Moeda Digital é a forma mais simples e segura de receber pagamentos em sua loja virtual.  Este plugin adiciona as principais bandeiras de cartões em seu site e processa os pagamentos. Mais detalhes em Moeda Digital.  <a href="https://moeda.digital/">Clique aqui</a>.', 'woothemes' ); ?></p>
 					<table class="form-table">
 					<?php $this->generate_settings_html(); ?>
 				</table>
