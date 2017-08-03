@@ -224,13 +224,13 @@ function woocommerce_moeda_digital_init() {
 				/**
 				 * UI - Admin Panel Options
 				 */
-				function admin_options() { ?>
+				function admin_options() {?>
 				<h3><?php _e( 'Moeda Digital','woothemes' ); ?></h3>
 					<p><?php _e( 'Moeda Digital é a forma mais simples e segura de receber pagamentos em sua loja virtual.  Este plugin adiciona as principais bandeiras de cartões em seu site e processa os pagamentos. Mais detalhes em Moeda Digital.  <a href="https://moeda.digital/">Clique aqui</a>.', 'woothemes' ); ?></p>
 					<table class="form-table">
 					<?php $this->generate_settings_html(); ?>
 				</table>
-			<?php }
+<?php }
 
 				/***************************************************************** Tela de Pagamento do Pedido *************************************************/
 				/**
@@ -264,7 +264,7 @@ function woocommerce_moeda_digital_init() {
 						if ( $this->description ) { ?>
 								<p><?php echo $this->description; ?></p>
 
-					<?php } ?>
+<?php } ?>
 
 <style>
    #payment .payment_methods li img {
@@ -349,13 +349,13 @@ function woocommerce_moeda_digital_init() {
          <?php
               foreach ($meios as  $meio) {
               if($meio->Tipo== 'CREDITO'){
-               echo '<img class="bandeiras-md" <?php echo src="' . $meio->Imagem . '"/>' ;
+               echo '<img class="bandeiras-md" src="' . $meio->Imagem . '"/>' ;
               }
             }
             ?>
          <label id="lblIcon" style="display:none;"><?php echo PLUGIN_DIR ?></label>
          <label for="ccnum" id="lblccnum"><?php echo __( 'Número do Cartão de Crédito', 'woocommerce' ) ?> <span class="required">*</span></label>
-         <img id="imgBandeira" alt="Bandeira" src="<?php echo $this->icon ?>images/blank.png" style="float:right; height: 32px !important;max-height: 32px !important; margin: 0px !important;" />
+         <img id="imgBandeira" alt="Bandeira" <?php echo 'src="'.  $this->icon . 'images/blank.png"' ?> style="float:right; height: 32px !important;max-height: 32px !important; margin: 0px !important;" />
          <input type="text" class="input-text-md" id="ccnum" name="ccnum" maxlength="16" onblur="validaCartao();"  style="width:85%;" />
       </p>
       <div class="clear"></div>
@@ -369,7 +369,8 @@ function woocommerce_moeda_digital_init() {
                for ( $i = 1; $i <= 12; $i ++ ) {
                   $num = str_pad($i, 2, "0", STR_PAD_LEFT);
                   printf( '<option value="%u">%s</option>', $num, $num );
-               }
+               }?>
+
                                                                                                          ?>
          </select>
          <select name="expyear" id="expyear" class="woocommerce-select-md woocommerce-cc-year">
@@ -378,7 +379,7 @@ function woocommerce_moeda_digital_init() {
                $years = array();
                for ( $i = date( 'y' ); $i <= date( 'y' ) + 15; $i ++ ) {
                   printf( '<option value="20%u">20%u</option>', $i, $i );
-               }
+               }?>
                                                                                                          ?>
          </select>
       </p>
@@ -771,4 +772,4 @@ function woocommerce_moeda_digital_init() {
 	}
 
 	add_filter( 'woocommerce_payment_gateways', 'add_moeda_digital_gateway' );
-}
+}?>
